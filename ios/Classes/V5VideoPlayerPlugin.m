@@ -1,4 +1,4 @@
-#import "VideoplayerPlugin.h"
+#import "V5VideoPlayerPlugin.h"
 #if __has_include(<videoplayer/videoplayer-Swift.h>)
 #import <videoplayer/videoplayer-Swift.h>
 #else
@@ -8,7 +8,7 @@
 #import "videoplayer-Swift.h"
 #endif
 
-@implementation VideoplayerPlugin
+@implementation V5VideoPlayerPlugin
 + (void)registerWithRegistrar:(NSObject<FlutterPluginRegistrar>*)registrar {
   [SwiftVideoplayerPlugin registerWithRegistrar:registrar];
 }

@@ -1,10 +1,10 @@
 import Flutter
 import UIKit
 
-public class SwiftVideoplayerPlugin: NSObject, FlutterPlugin {
+public class SwiftV5VideoPlayerPlugin: NSObject, FlutterPlugin {
   public static func register(with registrar: FlutterPluginRegistrar) {
     let channel = FlutterMethodChannel(name: "videoplayer", binaryMessenger: registrar.messenger())
-    let instance = SwiftVideoplayerPlugin()
+    let instance = SwiftV5VideoPlayerPlugin()
     registrar.addMethodCallDelegate(instance, channel: channel)
   }
 
