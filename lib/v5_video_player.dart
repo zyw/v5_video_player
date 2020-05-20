@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
 final MethodChannel _channel =
@@ -41,6 +43,12 @@ class _VideoPlayerState extends State<V5VideoPlayer> {
 //    return GestureDetector(
 //      behavior: HitTestBehavior.opaque,
 //      child: nativeView(),
+//      onTap: () {
+//        print("-------------------------单击了");
+//      },
+//      onTapUp: (TapUpDetails details) {
+//        print("ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd");
+//      },
 //      onHorizontalDragStart: (DragStartDetails details) {
 //        print("onHorizontalDragStart: ${details.globalPosition}");
 //        // if (!controller.value.initialized) {
@@ -77,6 +85,7 @@ class _VideoPlayerState extends State<V5VideoPlayer> {
       return AndroidView(
         viewType: 'plugins.v5_video_player/view',
         onPlatformViewCreated: onPlatformViewCreated,
+        gestureRecognizers: Set()..add(Factory<TapGestureRecognizer>(() => TapGestureRecognizer())),
         creationParams: <String,dynamic>{
           "x": widget.x,
           "y": widget.y,
@@ -106,6 +115,7 @@ class _VideoPlayerState extends State<V5VideoPlayer> {
     }
 
     widget.controller.viewId = id;//(new V5VideoPlayerController.init(id));
+    widget.controller.initialize();
     await widget.controller.create();
   }
 }
@@ -131,7 +141,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   Completer<void> _creatingCompleter;
   StreamSubscription<dynamic> _eventSubscription;
 
-  Future<void> initialize() async {
+  void initialize() {
     _lifeCycleObserver = _VideoAppLifeCycleObserver(this);
     _lifeCycleObserver.initialize();
     _creatingCompleter = Completer<void>();
@@ -145,36 +155,52 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
 //    final Completer<void> initializingCompleter = Completer<void>();
     void eventListener(dynamic event) {
       final Map<dynamic, dynamic> map = event;
-      switch (map['event']) {
-        case "PLAY_EVT_RCV_FIRST_I_FRAME": // 渲染首个视频数据包(IDR)
+      final eventName = enumFromString<EventType>(EventType.values, map['event']);
+      switch (eventName) {
+        case EventType.PLAYER_EVENT_RENDERING_START: // 首帧渲染显示事件
           break;
-        case "PLAY_EVT_VOD_LOADING_END": // loading结束（点播）
+        case EventType.PLAYER_EVENT_PREPARED: //准备完成事件
+          break;
+        case EventType.PLAYER_EVENT_LOADING_BEGIN: // loading开始
+          value = value.copyWith(isBuffering: true);
+          break;
+        case EventType.PLAYER_EVENT_LOADING_END: //loading结束
           value = value.copyWith(isBuffering: false);
           break;
-        case "PLAY_EVT_PLAY_BEGIN": // 视频播放开始
+        case EventType.PLAYER_EVENT_AUTO_PLAY_START:
           value = value.copyWith(
             isPlaying: true,
-            duration: Duration(seconds: map['duration']),
-            position: Duration(seconds: map['position']),
+            duration: Duration(milliseconds: map['duration']),
+            position: Duration(milliseconds: map['position']),
           );
           break;
-        case "PLAY_EVT_PLAY_PROGRESS": // 视频播放进度
+        case EventType.PLAYER_EVENT_CURRENT_POSITION: // 视频播放开始
           value = value.copyWith(
             isPlaying: true,
-            duration: Duration(seconds: map['duration']),
-            position: Duration(seconds: map['position']),
+            duration: Duration(milliseconds: map['duration']),
+            position: Duration(milliseconds: map['position']),
           );
           break;
-        case "PLAY_EVT_PLAY_END": // 视频播放结束
+//        case "PLAY_EVT_PLAY_PROGRESS": // 视频播放进度
+//          value = value.copyWith(
+//            isPlaying: true,
+//            duration: Duration(seconds: map['duration']),
+//            position: Duration(seconds: map['position']),
+//          );
+//          break;
+        case EventType.PLAYER_EVENT_COMPLETION: // 视频播放结束
           value = value.copyWith(
             isPlaying: false,
           );
           break;
-        case "PLAY_EVT_PLAY_LOADING": // 视频播放loading
-          value = value.copyWith(isBuffering: true);
+        case EventType.PLAYER_EVENT_LOOPING_START: // 视频播放循环
+          value = value.copyWith(isLooping: true);
           break;
-        case "PLAY_EVT_CONNECT_SUCC": // 已经连接服务器
+        case EventType.PLAYER_EVENT_FAIL: // 视频播放失败
+          value = value.copyWith(errorDescription: map['msg']);
           break;
+        default:
+          print("事件没有找到" + eventName.toString());
       }
     }
 
@@ -188,12 +214,9 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
       return EventChannel(
           'v5cn.cn/v5VideoPlayer/videoEvents$viewId');
     }
-
     _eventSubscription = _eventChannelFor(_viewId)
         .receiveBroadcastStream()
         .listen(eventListener, onError: errorListener);
-
-    return Future.value(null);
   }
 
   Future<void> create() async {
@@ -214,8 +237,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     value = value.copyWith(isPlaying: true);
     if (value.isPlaying) {
       await _channel.invokeMethod(
-        'play',
-        //<String, dynamic>{'textureId': _textureId},
+        'start'
       );
     }
   }
@@ -228,8 +250,20 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     value = value.copyWith(isPlaying: false);
     if (!value.isPlaying) {
       await _channel.invokeMethod(
-        'pause',
-        //<String, dynamic>{'textureId': _textureId},
+        'pause'
+      );
+    }
+  }
+
+  ///重新加载
+  Future<void> reload() async {
+    if (!value.initialized || _isDisposed) {
+      return;
+    }
+    value = value.copyWith(isPlaying: false);
+    if (!value.isPlaying) {
+      await _channel.invokeMethod(
+          'reload'
       );
     }
   }
@@ -240,8 +274,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
       if (!_isDisposed) {
         await _eventSubscription?.cancel();
         await _channel.invokeMethod(
-          'dispose',
-          //<String, dynamic>{'textureId': _textureId},
+          'dispose'
         );
         _isDisposed = true;
       }
@@ -259,7 +292,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     }
     _channel.invokeMethod(
       'setLoop',
-      //<String, dynamic>{'textureId': _textureId, 'loop': value.isLooping},
+      <String, dynamic>{'loop': value.isLooping},
     );
   }
 
@@ -277,15 +310,12 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   }
 
   ///获取可播放的时长
-  Future<Duration> get playableDuration async {
+  Future<Duration> get duration async {
     if (_isDisposed) {
       return null;
     }
     return Duration(
-      seconds: await _channel.invokeMethod(
-        'playableDuration',
-        //<String, dynamic>{'textureId': _textureId},
-      ),
+      milliseconds: await _channel.invokeMethod('getDuration'),
     );
   }
 
@@ -294,10 +324,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     if (_isDisposed) {
       return null;
     }
-    return await _channel.invokeMethod(
-      'width',
-      //<String, dynamic>{'textureId': _textureId},
-    );
+    return await _channel.invokeMethod('getVideoWidth');
   }
 
   ///获取视频高度
@@ -305,10 +332,14 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     if (_isDisposed) {
       return null;
     }
-    return await _channel.invokeMethod(
-      'height',
-      //<String, dynamic>{'textureId': _textureId},
-    );
+    return await _channel.invokeMethod('getVideoHeight');
+  }
+
+  Future<Duration> get volume async {
+    if (_isDisposed) {
+      return null;
+    }
+    return await _channel.invokeMethod('getVolume');
   }
 
   ///跳转位置
@@ -322,8 +353,23 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
       moment = const Duration();
     }
     await _channel.invokeMethod('seekTo', <String, dynamic>{
-      //'textureId': _textureId,
-      'position': moment.inSeconds,
+      'position': moment.inMilliseconds,
+    });
+    value = value.copyWith(position: moment);
+  }
+
+  ///跳转精确位置
+  Future<void> seekToAccurate(Duration moment) async {
+    if (_isDisposed) {
+      return;
+    }
+    if (moment > value.duration) {
+      moment = value.duration;
+    } else if (moment < const Duration()) {
+      moment = const Duration();
+    }
+    await _channel.invokeMethod('seekToAccurate', <String, dynamic>{
+      'position': moment.inMilliseconds,
     });
     value = value.copyWith(position: moment);
   }
@@ -368,26 +414,31 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     value = value.copyWith(renderRotation: renderRotation);
   }
 
+  Future<void> snapshot() async {
+    if (_isDisposed) {
+      return;
+    }
+    await _channel.invokeMethod('snapshot');
+  }
+
   Future<void> setMute(bool isMute) async {
     if (_isDisposed) {
       return;
     }
     await _channel.invokeMethod('setMute', <String, dynamic>{
-      //'textureId': _textureId,
       'mute': isMute,
     });
     value = value.copyWith(isMute: isMute);
   }
 
-  Future<void> setRate(double rate) async {
+  Future<void> setSpeed(double speed) async {
     if (_isDisposed) {
       return;
     }
-    await _channel.invokeMethod('setRate', <String, dynamic>{
-      //'textureId': _textureId,
-      'rate': rate,
+    await _channel.invokeMethod('setSpeed', <String, dynamic>{
+      'speed': speed,
     });
-    value = value.copyWith(rate: rate);
+    value = value.copyWith(speed: speed);
   }
 
   Future<void> setMirror(bool isMirror) async {
@@ -413,9 +464,11 @@ class VideoPlayerValue {
     this.isPlaying = false,
     this.isLooping = false,
     this.isBuffering = false,
+    this.percent,
+    this.kbps,
     this.isMute = false,
     this.isMirror = false,
-    this.rate = 1,
+    this.speed = 1,
     this.renderMode,
     this.renderRotation,
     this.volume = 1.0,
@@ -447,6 +500,11 @@ class VideoPlayerValue {
   /// True if the video is currently buffering.
   final bool isBuffering;
 
+  //缓冲百分百
+  final int percent;
+  //缓冲网速
+  final double kbps;
+
   /// The current volume of the playback.
   final double volume;
 
@@ -463,7 +521,7 @@ class VideoPlayerValue {
   final String renderMode;
   final String renderRotation;
   final bool isMute;
-  final double rate;
+  final double speed;
   final bool isMirror;
 
   bool get initialized => duration != null;
@@ -480,10 +538,12 @@ class VideoPlayerValue {
     bool isPlaying,
     bool isLooping,
     bool isBuffering,
+    int percent,
+    double kbps,
     String renderMode,
     String renderRotation,
     bool isMute,
-    double rate,
+    double speed,
     double volume,
     String errorDescription,
     bool isMirror,
@@ -496,9 +556,11 @@ class VideoPlayerValue {
       isPlaying: isPlaying ?? this.isPlaying,
       isLooping: isLooping ?? this.isLooping,
       isBuffering: isBuffering ?? this.isBuffering,
+      percent: percent ?? this.percent,
+      kbps: kbps ?? this.kbps,
       isMute: isMute ?? this.isMute,
       isMirror: isMirror ?? this.isMirror,
-      rate: rate ?? this.rate,
+      speed: speed ?? this.speed,
       renderMode: renderMode ?? this.renderMode,
       renderRotation: renderRotation ?? this.renderRotation,
       volume: volume ?? this.volume,
@@ -540,46 +602,67 @@ class DurationRange {
 }
 
 class PlayerConfig {
-  PlayerConfig(
-      {this.connectRetryCount = 3,
-        this.connectRetryInterval = 3,
-        this.timeout = 10,
-        this.cacheFolderPath,
-        this.maxCacheItems = 1,
-        this.progressInterval = 0.5,
-        this.autoPlay = true});
 
-  /// 自动播放
-  final bool autoPlay;
+  PlayerConfig({
+      this.mHttpProxy = "",
+      this.mReferrer,
 
-  /// 播放器连接重试次数 : 最小值为 1， 最大值为 10, 默认值为 3
-  final int connectRetryCount;
+      this.mMaxDelayTime = 0,
+      this.mMaxBufferDuration = 0,
+      this.mHighBufferDuration = 0,
+      this.mStartBufferDuration = 0,
+      this.mMaxProbeSize = 0,
+      this.mClearFrameWhenStop,
+      this.mEnableVideoTunnelRender = false,
+      this.mEnableSEI = false,
+      this.mUserAgen = "",
+      this.mNetworkRetryCount = 2,
+      this.mNetworkTimeout = 5000,
+      this.mCustomHeaders});
+  // http代理
+  final String mHttpProxy;
 
-  /// 播放器连接重试间隔 : 单位秒，最小值为 3, 最大值为 30， 默认值为 3
-  final int connectRetryInterval;
+  final String mReferrer;
 
-  /// 超时时间： 单位秒，默认10s
-  final int timeout;
+  // 最大延迟
+  final int mMaxDelayTime;
+  // 最大缓冲区时长
+  final int mMaxBufferDuration;
+  // 高缓冲时长
+  final int mHighBufferDuration;
+  // 起播缓冲区时长。
+  final int mStartBufferDuration;
+  // 最大probe大小
+  final int mMaxProbeSize;
+  // 停止后是否清空画面
+  final bool mClearFrameWhenStop;
+  // 是否启用TunnelRender
+  final bool mEnableVideoTunnelRender;
+  final bool mEnableSEI;
+  // 设置请求的ua
+  final String mUserAgen;
+  //网络重试次数，每次间隔networkTimeout，networkRetryCount=0则表示不重试，重试策略app决定，默认值为2
+  final int mNetworkRetryCount;
+  //网络超时时间。
+  final int mNetworkTimeout;
 
-  /// 视频缓存目录，点播MP4、HLS有效
-  /// 注意：缓存目录应该是单独的目录，SDK可能会清掉其中的文件
-  final String cacheFolderPath;
-
-  /// 最多缓存文件个数
-  final int maxCacheItems;
-
-  /// 设置进度回调间隔时间
-  ///  若不设置，SDK默认间隔0.5秒回调一次
-  final double progressInterval;
+  final List<String> mCustomHeaders;
 
   Map<String, dynamic> toJson() => <String, dynamic>{
-    'connectRetryCount': this.connectRetryCount,
-    'connectRetryInterval': this.connectRetryInterval,
-    'timeout': this.timeout,
-    'cacheFolderPath': this.cacheFolderPath,
-    'maxCacheItems': this.maxCacheItems,
-    'progressInterval': this.progressInterval,
-    'autoPlay': this.autoPlay,
+    'mHttpProxy': this.mHttpProxy,
+    'mReferrer': this.mReferrer,
+    'mNetworkTimeout': this.mNetworkTimeout,
+    'mMaxBufferDuration': this.mMaxBufferDuration,
+    'mHighBufferDuration': this.mHighBufferDuration,
+    'mStartBufferDuration': this.mStartBufferDuration,
+    'mMaxProbeSize': this.mMaxProbeSize,
+    'mClearFrameWhenStop': this.mClearFrameWhenStop,
+    'mEnableVideoTunnelRender': this.mEnableVideoTunnelRender,
+    'mEnableVideoTunnelRender': this.mEnableVideoTunnelRender,
+    'mEnableSEI': this.mEnableSEI,
+    'mUserAgen': this.mUserAgen,
+    'mNetworkRetryCount': this.mNetworkRetryCount,
+    'mCustomHeaders': this.mCustomHeaders,
   };
 }
 
@@ -614,4 +697,43 @@ class _VideoAppLifeCycleObserver with WidgetsBindingObserver {
       default:
     }
   }
+}
+
+enum EventType {
+  //准备完成事件
+  PLAYER_EVENT_PREPARED,
+  //视频播放失败事件
+  PLAYER_EVENT_FAIL,
+  //分辨率发生变化
+  PLAYER_EVENT_SIZE_CHANGED,
+  //首帧渲染显示事件
+  PLAYER_EVENT_RENDERING_START,
+  //开始自动播放
+  PLAYER_EVENT_AUTO_PLAY_START,
+  //缓冲位置
+  PLAYER_EVENT_BUFFERED_POSITION,
+  //当前播放位置
+  PLAYER_EVENT_CURRENT_POSITION,
+  //循环播放开始。
+  PLAYER_EVENT_LOOPING_START,
+  //拖动完成
+  PLAYER_EVENT_SEEK_COMPLETE,
+  //播放状态改变
+  PLAYER_EVENT_STATE_CHANGED,
+  //截图事件
+  PLAYER_EVENT_SNAP_SHOT,
+  //loading开始
+  PLAYER_EVENT_LOADING_BEGIN,
+  //缓冲进度
+  PLAYER_EVENT_LOADING_PROGRESS,
+  //loading结束
+  PLAYER_EVENT_LOADING_END,
+  //视频播放完成
+  PLAYER_EVENT_COMPLETION,
+}
+
+///string转枚举类型
+T enumFromString<T>(Iterable<T> values, String value) {
+  return values.firstWhere((type) => type.toString().split('.').last == value,
+      orElse: () => null);
 }

@@ -94,70 +94,142 @@ class V5VideoPlayerView(
         //播放失败的事件监听
         aliPlayer?.setOnErrorListener(object : IPlayer.OnErrorListener{
             override fun onError(errorInfo: ErrorInfo?) {
-                //TODO("Not yet implemented 播放失败的事件监听")
-                //Log.d("dd","播放失败的事件监听")
+                //播放失败的事件监听
+                VcPlayerLog.d(tag, "播放失败" + errorInfo?.msg)
+                val eventResult = HashMap<String, Any>()
+                eventResult["event"] = EventType.PLAYER_EVENT_FAIL.name
+                eventResult["code"] = errorInfo?.code ?: 0
+                eventResult["msg"] = errorInfo?.msg ?: ""
+                eventResult["extra"] = errorInfo?.extra ?: ""
+                eventSink.success(eventResult)
             }
         })
 
         //准备成功事件
         aliPlayer?.setOnPreparedListener {
-            //TODO("准备成功事件")
-            //Log.d("dd","准备成功事件")
-            //aliPlayer?.redraw()
+            //准备成功事件
+            VcPlayerLog.d(tag, "准备成功事件")
+            val eventResult = HashMap<String, Any>()
+            eventResult["event"] = EventType.PLAYER_EVENT_PREPARED.name
+            eventSink.success(eventResult)
         }
 
         //视频分辨率变化回调
         aliPlayer?.setOnVideoSizeChangedListener { width, height ->
             //视频分辨率变化回调
+            VcPlayerLog.d(tag, "视频分辨率变化回调")
+            val eventResult = HashMap<String, Any>()
+            eventResult["event"] = EventType.PLAYER_EVENT_SIZE_CHANGED.name
+            eventSink.success(eventResult)
         }
 
         //首帧渲染显示事件
         aliPlayer?.setOnRenderingStartListener {
             //首帧渲染显示事件
-            //Log.d("dd","首帧渲染显示事件")
+            VcPlayerLog.d(tag, "首帧渲染显示事件")
+            val eventResult = HashMap<String, Any>()
+            eventResult["event"] = EventType.PLAYER_EVENT_RENDERING_START.name
+            eventSink.success(eventResult)
         }
 
         // 其他信息的事件，type包括了：循环播放开始，缓冲位置，当前播放位置，自动播放开始等
         aliPlayer?.setOnInfoListener(object : IPlayer.OnInfoListener{
             override fun onInfo(info: InfoBean?) {
-                //TODO("Not yet implemented")
                 //其他信息的事件，type包括了：循环播放开始，缓冲位置，当前播放位置，自动播放开始等
                 //Log.d("dd","其他信息的事件，type包括了：循环播放开始，缓冲位置，当前播放位置，自动播放开始等" + info?.code)
-                if(info?.code == InfoCode.CurrentPosition) {
-                    //Log.d("dd","其他信息的事件，type包括了：循环播放开始，缓冲位置，当前播放位置，自动播放开始等: " + info.extraValue)
-                    //Log.d("dd", info.extraMsg)
-                }
-
-                if (info?.code == InfoCode.AutoPlayStart){
-                    //自动播放开始事件。
-                }
-
-                if (info?.code == InfoCode.LoopingStart){
-                    //循环播放开始事件。
+                when(info?.code) {
+                    InfoCode.CurrentPosition -> {
+                        //当前播放位置
+                        VcPlayerLog.d(tag, "当前播放位置" + info.extraValue)
+                        val eventResult = HashMap<String, Any>()
+                        eventResult["event"] = EventType.PLAYER_EVENT_CURRENT_POSITION.name
+                        eventResult["code"] = info.code.name
+                        eventResult["duration"] = aliPlayer?.duration ?: 0
+                        eventResult["position"] = info.extraValue
+                        eventResult["msg"] = info.extraMsg ?: ""
+                        eventSink.success(eventResult)
+                    }
+                    InfoCode.AutoPlayStart -> {
+                        //自动播放开始事件。
+                        VcPlayerLog.d(tag, "自动播放开始事件")
+                        val eventResult = HashMap<String, Any>()
+                        eventResult["event"] = EventType.PLAYER_EVENT_AUTO_PLAY_START.name
+                        eventResult["code"] = info.code.name
+                        eventResult["duration"] = aliPlayer?.duration ?: 0
+                        eventResult["position"] = info.extraValue ?: 0
+                        eventSink.success(eventResult)
+                    }
+                    InfoCode.LoopingStart -> {
+                        //循环播放开始事件。
+                        VcPlayerLog.d(tag, "循环播放开始事件")
+                        val eventResult = HashMap<String, Any>()
+                        eventResult["event"] = EventType.PLAYER_EVENT_LOOPING_START.name
+                        eventResult["code"] = info.code.name
+                        eventSink.success(eventResult)
+                    }
+                    InfoCode.BufferedPosition -> {
+                        //缓存位置。
+                        VcPlayerLog.d(tag, "缓存位置事件")
+                        val eventResult = HashMap<String, Any>()
+                        eventResult["event"] = EventType.PLAYER_EVENT_BUFFERED_POSITION.name
+                        eventResult["code"] = info.code.name
+                        eventSink.success(eventResult)
+                    }
                 }
             }
         })
 
         aliPlayer?.setOnLoadingStatusListener(object : IPlayer.OnLoadingStatusListener{
             override fun onLoadingBegin() {
-                //TODO("Not yet implemented")
                 //缓冲开始。
+                VcPlayerLog.d(tag, "缓冲开始")
+                val eventResult = HashMap<String, Any>()
+                eventResult["event"] = EventType.PLAYER_EVENT_LOADING_BEGIN.name
+                eventSink.success(eventResult)
             }
 
             override fun onLoadingProgress(percent: Int, kbps: Float) {
-                //TODO("Not yet implemented")
                 //缓冲进度
+                VcPlayerLog.d(tag, "缓冲进度")
+                val eventResult = HashMap<String, Any>()
+                eventResult["event"] = EventType.PLAYER_EVENT_LOADING_PROGRESS.name
+                //缓冲百分百
+                eventResult["percent"] = percent
+                //缓冲网速
+                eventResult["kbps"] = kbps
+                eventSink.success(eventResult)
             }
 
             override fun onLoadingEnd() {
-                //TODO("Not yet implemented")
                 //缓冲结束
+                VcPlayerLog.d(tag, "缓冲结束")
+                val eventResult = HashMap<String, Any>()
+                eventResult["event"] = EventType.PLAYER_EVENT_LOADING_END.name
+                eventSink.success(eventResult)
+            }
+        })
+
+        aliPlayer?.setOnSeiDataListener(object : IPlayer.OnSeiDataListener{
+            override fun onSeiData(p0: Int, p1: ByteArray?) {
+                VcPlayerLog.d(tag, "setOnSeiDataListener: " + p0 + "   " + p1?.size)
             }
         })
 
         //拖动结束
         aliPlayer?.setOnSeekCompleteListener {
             //拖动结束
+            VcPlayerLog.d(tag, "拖动结束")
+            val eventResult = HashMap<String, Any>()
+            eventResult["event"] = EventType.PLAYER_EVENT_SEEK_COMPLETE.name
+            eventSink.success(eventResult)
+        }
+
+        //视频播放完成
+        aliPlayer?.setOnCompletionListener {
+            VcPlayerLog.d(tag, "视频播放完成")
+            val eventResult = HashMap<String, Any>()
+            eventResult["event"] = EventType.PLAYER_EVENT_COMPLETION.name
+            eventSink.success(eventResult)
         }
 
         //字幕
@@ -192,13 +264,23 @@ class V5VideoPlayerView(
         aliPlayer?.setOnStateChangedListener { newState ->
             //播放器状态改变事件
             //Log.d("dd","播放器状态改变事件" + newState)
-            //aliPlayer?.redraw();
+            VcPlayerLog.d(tag, "播放器状态改变事件" + newState)
+            val eventResult = HashMap<String, Any>()
+            eventResult["event"] = EventType.PLAYER_EVENT_STATE_CHANGED.name
+            eventResult["state"] = newState
+            eventSink.success(eventResult)
         }
 
         //截图事件
         aliPlayer?.setOnSnapShotListener(object : IPlayer.OnSnapShotListener{
             override fun onSnapShot(bm: Bitmap?, width: Int, height: Int) {
-                //TODO("Not yet implemented")
+                VcPlayerLog.d(tag, "截图事件")
+                val eventResult = HashMap<String, Any>()
+                eventResult["event"] = EventType.PLAYER_EVENT_SNAP_SHOT.name
+                eventResult["bm"] = bm!!
+                eventResult["width"] = width
+                eventResult["height"] = height
+                eventSink.success(eventResult)
             }
         })
 
@@ -248,13 +330,13 @@ class V5VideoPlayerView(
                 result.success(null)
             }
             "seekTo" -> {
-                val mes = call.argument<Long>("position") ?: 0
-                aliPlayer?.seekTo(mes)
+                val mes = call.argument<Int>("position") ?: 0
+                aliPlayer?.seekTo(mes.toLong())
                 result.success(null)
             }
             "seekToAccurate" -> {
-                val mes = call.argument<Long>("position") ?: 0
-                aliPlayer?.seekTo(mes,IPlayer.SeekMode.Accurate)
+                val mes = call.argument<Int>("position") ?: 0
+                aliPlayer?.seekTo(mes.toLong(),IPlayer.SeekMode.Accurate)
                 result.success(null)
             }
             "snapshot" -> {
@@ -262,8 +344,8 @@ class V5VideoPlayerView(
                 result.success(null)
             }
             "setSpeed" -> {
-                val speed = call.argument<Float>("speed") ?: 0.0F
-                aliPlayer?.setSpeed(speed)
+                val speed = call.argument<Double>("speed") ?: 0.0
+                aliPlayer?.speed = speed.toFloat()
                 result.success(null)
             }
             "setMute" -> {
@@ -283,6 +365,22 @@ class V5VideoPlayerView(
             "pause" -> {
                 aliPlayer?.pause()
                 result.success(null)
+            }
+            "getDuration" -> {
+                val duration = aliPlayer?.duration
+                result.success(duration)
+            }
+            "getVideoHeight" -> {
+                result.success(aliPlayer?.videoHeight)
+            }
+            "getVideoWidth" -> {
+                result.success(aliPlayer?.videoWidth)
+            }
+            "getVolume" -> {
+                result.success(aliPlayer?.volume)
+            }
+            "getSpeed" -> {
+                result.success(aliPlayer?.speed)
             }
             else -> result.notImplemented()
         }

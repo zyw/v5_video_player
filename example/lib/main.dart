@@ -25,14 +25,15 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
      _controller = VideoPlayerController.path(
-        "http://vfx.mtime.cn/Video/2019/03/21/mp4/190321153853126488.mp4")
-      ..initialize();
+        "http://vfx.mtime.cn/Video/2019/03/21/mp4/190321153853126488.mp4");
 
     _listener = () {
       setState(() {});
       if (_controller.value.hasError) {
         print(_controller.value);
       }
+      print("999999999999999999999999999999999999999999999900000000000000000000000000");
+      print(_showOverlay);
     };
 
     _controller?.addListener(_listener);
@@ -64,19 +65,21 @@ class _MyAppState extends State<MyApp> {
             child: Stack(
               fit: StackFit.expand,
               children: <Widget>[
-                InkWell(
-                  onTap: () {
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTapDown: (TapDownDetails details) {
+                    print("------------------------onTap()");
                     _switchOverlay();
                   },
                   child: videoPlayer,
                 ),
                 Align(
                   alignment: Alignment.topCenter,
-                  child: _buildTopContainer(),//_showOverlay ? _buildTopContainer() : null,
+                  child: _showOverlay ? _buildTopContainer() : null,
                 ),
                 Align(
                   alignment: Alignment.bottomCenter,
-                  child: buildBottomContainer(),//(_showOverlay && _controller.value.initialized)? buildBottomContainer(): null,
+                  child: (_showOverlay && _controller.value.initialized)? buildBottomContainer(): null,
                 ),
 //                Center(
 //                    child: (!controller.value.initialized || controller.value.isBuffering)
@@ -158,14 +161,14 @@ class _MyAppState extends State<MyApp> {
               ),
             ),
             onTap: () {
-              if (_controller.value.rate == 1.0) {
-                _controller.setRate(1.5);
-              } else if (_controller.value.rate == 1.5) {
-                _controller.setRate(2.0);
-              } else if (_controller.value.rate == 2.0) {
-                _controller.setRate(0.5);
-              } else if (_controller.value.rate == 0.5) {
-                _controller.setRate(1.0);
+              if (_controller.value.speed == 1.0) {
+                _controller.setSpeed(1.5);
+              } else if (_controller.value.speed == 1.5) {
+                _controller.setSpeed(2.0);
+              } else if (_controller.value.speed == 2.0) {
+                _controller.setSpeed(0.5);
+              } else if (_controller.value.speed == 0.5) {
+                _controller.setSpeed(1.0);
               }
             },
           ),
@@ -203,11 +206,12 @@ class _MyAppState extends State<MyApp> {
   }
 
   void _switchOverlay() {
+    print("=========================================_switchOverlay");
     if (_showOverlay) {
       _showOverlay = false;
     } else {
       _showOverlay = true;
-      _timer = Timer(Duration(milliseconds: 2000), () {
+      this._timer = Timer(Duration(milliseconds: 2000), () {
         _showOverlay = false;
         //This error happens if you call setState() on a State object for a widget that no longer appears in the widget tree
         if (mounted) setState(() {});
